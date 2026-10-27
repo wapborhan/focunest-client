@@ -1,91 +1,74 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Download } from "lucide-react";
+import { Plus, Pencil, Trash2, Download, Search, FilterX, Inbox, CalendarDays, CalendarRange, CalendarCheck } from "lucide-react";
 import TransactionForm from "./TransactionForm";
 import Dialog from "./Dialog";
+import Select from "./ui/Select";
+import DatePicker from "./ui/DatePicker";
+import DataTable from "./ui/DataTable";
+import Pagination from "./ui/Pagination";
+import StatCard from "./ui/StatCard";
 import { api } from "@/lib/client-api";
 import { formatBDT } from "@/lib/money";
 import { formatDhaka } from "@/lib/dates";
 import { KIND_COPY } from "@/lib/tx-labels";
+import { useUrlFilters } from "@/lib/use-url-filters";
 
-const SORTS = { "date:desc": "Newest first", "date:asc": "Oldest first", "amount:desc": "Highest amount", "amount:asc": "Lowest amount" };
-const input = "rounded-lg border border-line bg-white px-3 py-2";
+const SORTS = [{ value: "date:desc", label: "Newest first" }, { value: "date:asc", label: "Oldest first" }, { value: "amount:desc", label: "Highest amount" }, { value: "amount:asc", label: "Lowest amount" }];
 
-export default function TransactionsView({ kind }) {
-  const copy = KIND_COPY[kind]; const sign = kind === "income" ? "text-brand" : "text-red-700";
-  const [filters, setFilters] = useState({ from: "", to: "", categoryId: "", accountId: "", q: "", sort: "date", dir: "desc" });
-  const [qInput, setQInput] = useState(""); const [page, setPage] = useState(1);
-  const [data, setData] = useState(null); const [totals, setTotals] = useState(null); const [error, setError] = useState(null);
-  const [accounts, setAccounts] = useState([]); const [categories, setCategories] = useState([]);
-  const [form, setForm] = useState(null); const [del, setDel] = useState(null);
-  const set = (k, v) => { setFilters((f) => ({ ...f, [k]: v })); setPage(1); };
-  useEffect(() => { const t = setTimeout(() => set("q", qInput.trim()), 300); return () => clearTimeout(t); }, [qInput]);
-  const params = useMemo(() => { const p = new URLSearchParams({ kind }); Object.entries(filters).forEach(([k, v]) => v && p.set(k, v)); return p.toString(); }, [kind, filters]);
-
-  const loadRefs = useCallback(async () => {
-    const [a, c] = await Promise.all([api("/api/accounts"), api(`/api/categories?kind=${kind}`)]);
-    setAccounts(a.items); setCategories(c.items);
-  }, [kind]);
-  const loadList = useCallback(async () => {
-    setError(null);
-    try { setData(await api(`/api/transactions?${params}&page=${page}&limit=15`)); } catch (e) { setError(e.message); }
-  }, [params, page]);
-  const loadTotals = useCallback(() => api(`/api/transactions/totals?kind=${kind}`).then(setTotals).catch(() => {}), [kind]);
-  useEffect(() => { loadRefs().catch((e) => setError(e.message)); loadTotals(); }, [loadRefs, loadTotals]);
-  useEffect(() => { loadList(); }, [loadList]);
-  const refresh = () => { loadList(); loadTotals(); };
-
+export default function TransactionsView({ kind, query, data, totals, accounts, categories }) {
+  const copy = KIND_COPY[kind], tone = kind === "income" ? "text-brand" : "text-red-600";
+  const router = useRouter(); const { update, pending } = useUrlFilters();
+  const [qInput, setQInput] = useState(query.q ?? ""); const [form, setForm] = useState(null); const [del, setDel] = useState(null);
+  // Typing is debounced so a search costs one server render, not one per keystroke.
+  useEffect(() => { if ((query.q ?? "") === qInput.trim()) return; const t = setTimeout(() => update({ q: qInput.trim() }), 450); return () => clearTimeout(t); }, [qInput, query.q, update]);
+  const hasFilters = !!(query.from || query.to || query.categoryId || query.accountId || query.q);
+  const clear = () => { setQInput(""); update({ from: "", to: "", categoryId: "", accountId: "", q: "" }); };
+  const exportHref = `/api/transactions/export?${new URLSearchParams(Object.entries({ kind, from: query.from, to: query.to, categoryId: query.categoryId, accountId: query.accountId, q: query.q, sort: query.sort, dir: query.dir }).filter(([, v]) => v))}`;
+  const refresh = () => { setForm(null); router.refresh(); };
   async function remove(t) {
-    try { await api(`/api/transactions/${t.id}`, { method: "DELETE" }); toast.success("Deleted"); setDel(null); refresh(); }
+    try { await api(`/api/transactions/${t.id}`, { method: "DELETE" }); toast.success("Deleted"); setDel(null); router.refresh(); }
     catch (e) { toast.error(e.message); setDel(null); }
   }
-  const pages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
-  const cards = totals ? [["Today", totals.today], ["This month", totals.month], ["This year", totals.year]] : [];
-  const actions = (t) => (<div className="flex justify-end gap-1">
-    <button aria-label={`Edit ${t.title}`} onClick={() => setForm(t)} className="rounded-lg p-2 hover:bg-black/5"><Pencil size={16} /></button>
-    <button aria-label={`Delete ${t.title}`} onClick={() => setDel(t)} className="rounded-lg p-2 hover:bg-black/5"><Trash2 size={16} /></button></div>);
-
+  const columns = [
+    { key: "date", header: "Date", nowrap: true, cell: (t) => formatDhaka(t.date) },
+    { key: "title", header: copy.titleLabel, role: "title", cell: (t) => (<><span className="font-medium">{t.title}</span>{t.reference && <span className="block text-xs text-muted">Ref {t.reference}</span>}</>) },
+    { key: "category", header: "Category", cell: (t) => <span className="badge">{t.categoryName}</span> },
+    { key: "account", header: "Account", cell: (t) => t.accountName },
+    { key: "amount", header: "Amount", align: "right", role: "amount", nowrap: true, cell: (t) => <span className={`font-semibold tabular-nums ${tone}`}>{formatBDT(t.amountMinor)}</span> },
+    { key: "actions", role: "actions", align: "right", cell: (t) => (<div className="flex justify-end gap-1"><button aria-label={`Edit ${t.title}`} onClick={() => setForm(t)} className="icon-btn"><Pencil size={16} /></button>
+      <button aria-label={`Delete ${t.title}`} onClick={() => setDel(t)} className="icon-btn hover:!bg-red-50 hover:!text-red-600"><Trash2 size={16} /></button></div>) },
+  ];
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">{(cards.length ? cards : [["Today"], ["This month"], ["This year"]]).map(([l, v]) => (
-        <div key={l} className="rounded-xl border border-line bg-white p-4"><p className="text-sm text-muted">{l}</p>{v === undefined ? <div className="mt-1 h-6 animate-pulse rounded bg-black/5" /> : <p className={`text-lg font-semibold ${sign}`}>{formatBDT(v)}</p>}</div>))}</div>
-      <div className="flex flex-wrap items-end gap-2 rounded-xl border border-line bg-white p-3">
-        <label className="text-sm">From<input type="date" className={`${input} block`} value={filters.from} onChange={(e) => set("from", e.target.value)} /></label>
-        <label className="text-sm">To<input type="date" className={`${input} block`} value={filters.to} onChange={(e) => set("to", e.target.value)} /></label>
-        <label className="text-sm">Category<select className={`${input} block`} value={filters.categoryId} onChange={(e) => set("categoryId", e.target.value)}><option value="">All</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.nameEn}</option>)}</select></label>
-        <label className="text-sm">Account<select className={`${input} block`} value={filters.accountId} onChange={(e) => set("accountId", e.target.value)}><option value="">All</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
-        <label className="text-sm">Sort<select className={`${input} block`} value={`${filters.sort}:${filters.dir}`} onChange={(e) => { const [s, d] = e.target.value.split(":"); setFilters((f) => ({ ...f, sort: s, dir: d })); setPage(1); }}>{Object.entries(SORTS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
-        <label className="min-w-40 flex-1 text-sm">Search<input type="search" placeholder="Title, note or reference" className={`${input} block w-full`} value={qInput} onChange={(e) => setQInput(e.target.value)} /></label>
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-muted">{data ? <>Total for this view <strong className={sign}>{formatBDT(data.totalAmountMinor)}</strong> from {data.total} {data.total === 1 ? "entry" : "entries"}</> : "\u00a0"}</p>
-        <div className="flex gap-2">
-          <a href={`/api/transactions/export?${params}`} className="flex items-center gap-2 rounded-lg border border-line bg-white px-4 py-2"><Download size={16} />Export CSV</a>
-          <button onClick={() => setForm("new")} className="flex items-center gap-2 rounded-lg bg-brand px-4 py-2 font-medium text-white"><Plus size={16} />{copy.add}</button>
+    <div className="space-y-5">
+      <div className="grid grid-cols-3 gap-3"><StatCard i={0} icon={CalendarCheck} title="Today" value={formatBDT(totals.today)} tone={tone} /><StatCard i={1} icon={CalendarDays} title="This month" value={formatBDT(totals.month)} tone={tone} /><StatCard i={2} icon={CalendarRange} title="This year" value={formatBDT(totals.year)} tone={tone} /></div>
+      <div className="card animate-fade-up space-y-3 p-4" style={{ "--i": 3 }}>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          <div className="lg:col-span-2"><span className="lbl">Search</span><div className="relative"><Search size={16} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
+            <input type="search" aria-label="Search" placeholder="Title, note or reference" className="field pl-10" value={qInput} onChange={(e) => setQInput(e.target.value)} /></div></div>
+          <div><span className="lbl">From</span><DatePicker aria-label="From date" clearable placeholder="Any" value={query.from ?? ""} max={query.to} onChange={(v) => update({ from: v })} /></div>
+          <div><span className="lbl">To</span><DatePicker aria-label="To date" clearable placeholder="Any" value={query.to ?? ""} min={query.from} onChange={(v) => update({ to: v })} /></div>
+          <div><span className="lbl">Category</span><Select aria-label="Category" value={query.categoryId ?? ""} onChange={(v) => update({ categoryId: v })} options={[{ value: "", label: "All categories" }, ...categories.map((c) => ({ value: c.id, label: c.nameEn, hint: c.nameBn }))]} /></div>
+          <div><span className="lbl">Account</span><Select aria-label="Account" value={query.accountId ?? ""} onChange={(v) => update({ accountId: v })} options={[{ value: "", label: "All accounts" }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]} /></div>
+        </div>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="w-full sm:w-52"><Select aria-label="Sort" value={`${query.sort}:${query.dir}`} onChange={(v) => { const [sort, dir] = v.split(":"); update({ sort, dir }); }} options={SORTS} /></div>
+          <div className="flex flex-wrap gap-2">
+            {hasFilters && <button onClick={clear} className="btn btn-ghost"><FilterX size={16} aria-hidden />Clear filters</button>}
+            <a href={exportHref} className="btn btn-ghost"><Download size={16} aria-hidden />Export CSV</a>
+            <button onClick={() => setForm("new")} className="btn btn-primary"><Plus size={16} aria-hidden />{copy.add}</button></div>
         </div>
       </div>
-      {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4">{error} <button onClick={refresh} className="font-medium underline">Retry</button></div>}
-      {!data && !error && <div className="space-y-2" aria-busy="true">{[0, 1, 2].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-black/5" />)}</div>}
-      {data?.items.length === 0 && <div className="rounded-xl border border-dashed border-line bg-white p-8 text-center"><p className="font-medium">{copy.empty}</p><p className="text-muted">{copy.emptyHint}</p></div>}
-      {data?.items.length > 0 && (<>
-        <div className="hidden overflow-x-auto rounded-xl border border-line bg-white md:block">
-          <table className="w-full text-left text-sm"><caption className="sr-only">{copy.noun} entries</caption>
-            <thead className="border-b border-line text-muted"><tr><th className="p-3">Date</th><th className="p-3">{copy.titleLabel}</th><th className="p-3">Category</th><th className="p-3">Account</th><th className="p-3 text-right">Amount</th><th className="p-3"><span className="sr-only">Actions</span></th></tr></thead>
-            <tbody>{data.items.map((t) => (<tr key={t.id} className="border-b border-line last:border-0">
-              <td className="whitespace-nowrap p-3">{formatDhaka(t.date)}</td><td className="p-3">{t.title}{t.reference && <span className="block text-xs text-muted">Ref {t.reference}</span>}</td>
-              <td className="p-3">{t.categoryName}</td><td className="p-3">{t.accountName}</td><td className={`whitespace-nowrap p-3 text-right font-medium ${sign}`}>{formatBDT(t.amountMinor)}</td><td className="p-3">{actions(t)}</td></tr>))}</tbody></table>
-        </div>
-        <ul className="space-y-2 md:hidden">{data.items.map((t) => (<li key={t.id} className="rounded-xl border border-line bg-white p-3">
-          <div className="flex justify-between gap-2"><p className="font-medium">{t.title}</p><p className={`font-semibold ${sign}`}>{formatBDT(t.amountMinor)}</p></div>
-          <p className="text-sm text-muted">{formatDhaka(t.date)} · {t.categoryName} · {t.accountName}</p>{actions(t)}</li>))}</ul>
-      </>)}
-      {pages > 1 && <div className="flex items-center justify-between"><button disabled={page <= 1} onClick={() => setPage(page - 1)} className="rounded-lg px-4 py-2 hover:bg-black/5 disabled:opacity-40">Previous</button><span className="text-sm text-muted">Page {page} of {pages}</span><button disabled={page >= pages} onClick={() => setPage(page + 1)} className="rounded-lg px-4 py-2 hover:bg-black/5 disabled:opacity-40">Next</button></div>}
-      {form && <TransactionForm kind={kind} tx={form === "new" ? null : form} accounts={accounts} categories={categories} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); loadRefs(); }} onCategoryAdded={loadRefs} />}
+      <p className="text-sm text-muted">Total for this view <strong className={`text-base tabular-nums ${tone}`}>{formatBDT(data.totalAmountMinor)}</strong> from {data.total} {data.total === 1 ? "entry" : "entries"}</p>
+      <DataTable columns={columns} rows={data.items} caption={`${copy.noun} entries`} loading={pending}
+        empty={<><span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-brand-soft text-brand"><Inbox aria-hidden /></span><p className="mt-4 font-semibold">{copy.empty}</p><p className="mt-1 text-muted">{copy.emptyHint}</p></>} />
+      <Pagination page={data.page} total={data.total} limit={data.limit} onPage={(p) => update({ page: p > 1 ? p : "" })} />
+      {form && <TransactionForm kind={kind} tx={form === "new" ? null : form} accounts={accounts} categories={categories} onClose={() => setForm(null)} onSaved={refresh} />}
       {del && (<Dialog title={`Delete this ${copy.noun}?`} onClose={() => setDel(null)}>
-        <p className="text-muted">{del.title} for {formatBDT(del.amountMinor)} will be removed and the account balance corrected. A reversal stays in the account history.</p>
-        <div className="mt-4 flex justify-end gap-2"><button onClick={() => setDel(null)} className="rounded-lg px-4 py-2 hover:bg-black/5">Cancel</button><button onClick={() => remove(del)} className="rounded-lg bg-red-700 px-4 py-2 font-medium text-white">Delete {copy.noun}</button></div>
-      </Dialog>)}
+        <p className="text-muted"><b className="text-ink">{del.title}</b> for {formatBDT(del.amountMinor)} will be removed and the account balance corrected. A reversal stays in the account history.</p>
+        <div className="mt-5 flex justify-end gap-2"><button onClick={() => setDel(null)} className="btn btn-ghost">Cancel</button><button onClick={() => remove(del)} className="btn btn-danger">Delete {copy.noun}</button></div></Dialog>)}
     </div>
   );
 }

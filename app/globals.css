@@ -1,13 +1,44 @@
 @import "tailwindcss";
+@import "react-day-picker/style.css";
 @theme {
   --font-sans: var(--font-hind), system-ui, sans-serif;
-  --color-paper: #f5f6f3;
-  --color-ink: #1b2421;
-  --color-muted: #5d6b66;
-  --color-line: #dfe4e0;
-  --color-brand: #1f5c4d;
-  --color-brand-soft: #e3efea;
+  --color-paper: #f3f6f5; --color-ink: #0f1f1c; --color-muted: #5b6b66; --color-line: #e2e8e5;
+  --color-brand: #0f766e; --color-brand-dark: #0b4f49; --color-brand-soft: #e2f4f1; --color-accent: #14b8a6;
 }
-body { background: var(--color-paper); color: var(--color-ink); }
-:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+html { scroll-behavior: smooth; }
+body { font-size: 15px; min-height: 100vh; color: var(--color-ink);
+  background: radial-gradient(900px 420px at 95% -8%, #cfeee9 0%, transparent 60%), radial-gradient(700px 380px at -5% 105%, #e6f1ff 0%, transparent 60%), var(--color-paper); background-attachment: fixed; }
+/* Tailwind 4 resets buttons to the default cursor; restore the pointer on everything clickable. */
+a[href], button:not(:disabled), [role="button"], [role="tab"], [role="option"], [role="menuitem"], select, summary, label[for], input[type="checkbox"], input[type="radio"] { cursor: pointer; }
+button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.rdp-root { --rdp-accent-color: var(--color-brand); --rdp-accent-background-color: var(--color-brand-soft); --rdp-day-height: 40px; --rdp-day-width: 40px; --rdp-selected-border: 2px solid var(--color-brand); }
+.rdp-root select { cursor: pointer; }
+
+@layer components {
+  .card { @apply rounded-2xl border border-line bg-white shadow-[0_1px_2px_rgba(16,24,40,.04),0_10px_30px_-14px_rgba(16,24,40,.14)]; }
+  .card-hover { @apply transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_2px_4px_rgba(16,24,40,.05),0_18px_40px_-16px_rgba(15,118,110,.28)]; }
+  .field { @apply w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-ink shadow-sm transition placeholder:text-muted/70 hover:border-slate-300 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/15 disabled:bg-slate-100; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition active:scale-[.98] disabled:opacity-50; }
+  .btn-primary { @apply bg-gradient-to-br from-brand to-brand-dark text-white shadow-md shadow-brand/25 hover:brightness-110 hover:shadow-lg hover:shadow-brand/30; }
+  .btn-ghost { @apply border border-line bg-white text-ink hover:border-slate-300 hover:bg-slate-50; }
+  .btn-danger { @apply bg-red-600 text-white shadow-md shadow-red-600/20 hover:bg-red-700; }
+  .icon-btn { @apply rounded-lg p-2 text-muted transition hover:bg-brand-soft hover:text-brand; }
+  .badge { @apply inline-flex items-center rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-medium text-brand-dark; }
+  .lbl { @apply mb-1.5 block text-sm font-medium text-ink/80; }
+}
+@keyframes fade-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes pop { from { opacity: 0; transform: scale(.96) translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes sheet { from { opacity: 0; transform: translateY(28px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes drawer { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes shimmer { to { background-position: -200% 0; } }
+@keyframes progress { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+.animate-fade-up { animation: fade-up .5s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i, 0) * 60ms); }
+.animate-pop { animation: pop .16s ease-out both; transform-origin: top; }
+.animate-sheet { animation: sheet .28s cubic-bezier(.2,.8,.2,1) both; }
+.animate-drawer { animation: drawer .28s cubic-bezier(.2,.8,.2,1) both; }
+.animate-fade { animation: fade .2s ease-out both; }
+.skeleton { background: linear-gradient(90deg, #eef2f0 25%, #f8faf9 50%, #eef2f0 75%); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; border-radius: .75rem; }
+.progress { overflow: hidden; background: rgba(20,184,166,.15); border-radius: 9999px; }
+.progress::after { content: ""; display: block; height: 100%; width: 40%; background: linear-gradient(90deg, transparent, var(--color-accent), transparent); animation: progress 1s linear infinite; }

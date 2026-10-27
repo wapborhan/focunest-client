@@ -1,40 +1,38 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { api } from "@/lib/client-api";
+import { ArrowLeft, Scale, Rocket, ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, HandCoins } from "lucide-react";
+import DataTable from "./ui/DataTable";
+import Pagination from "./ui/Pagination";
+import StatCard from "./ui/StatCard";
 import { formatBDT } from "@/lib/money";
 import { formatDhaka } from "@/lib/dates";
+import { KIND_LABEL } from "@/lib/tx-labels";
+import { useUrlFilters } from "@/lib/use-url-filters";
 
-const KIND = { income: "Income", expense: "Expense", transfer: "Transfer", loan_out: "Money lent", borrow_in: "Money borrowed", repay_in: "Repayment received", repay_out: "Repayment made" };
 const LOAN = ["loan_out", "borrow_in", "repay_in", "repay_out"];
-
-export default function AccountDetail({ id, type }) {
-  const [data, setData] = useState(null); const [error, setError] = useState(null); const [page, setPage] = useState(1);
-  const load = useCallback(async () => { setError(null); try { setData(await api(`/api/accounts/${id}?page=${page}&limit=20`)); } catch (e) { setError(e.message); } }, [id, page]);
-  useEffect(() => { load(); }, [load]);
-  if (error) return <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4">{error} <button onClick={load} className="font-medium underline">Retry</button></div>;
-  if (!data) return <div className="h-40 animate-pulse rounded-xl bg-black/5" aria-busy="true" />;
-  const { account: a, history: h } = data; const k = h.byKind;
-  const loans = LOAN.reduce((s, x) => s + (k[x] ?? 0), 0);
-  const cards = [["Balance", a.balanceMinor], ["Opening balance", a.openingBalanceMinor], ["Income", k.income ?? 0], ["Expenses", k.expense ?? 0], ["Transfers (net)", k.transfer ?? 0], ["Loans (net)", loans]];
+export default function AccountDetail({ account: a, history: h }) {
+  const { update, pending } = useUrlFilters(); const k = h.byKind;
   const pages = Math.max(1, Math.ceil(h.total / h.limit));
+  const rows = [...h.items.map((e) => ({ ...e, kindLabel: `${KIND_LABEL[e.kind] ?? "Entry"}${e.isReversal ? " (reversal)" : ""}` })),
+    ...(h.page === pages ? [{ id: "opening", date: a.openingDate, kindLabel: "Opening", title: "Starting balance", amountMinor: a.openingBalanceMinor }] : [])];
+  const columns = [
+    { key: "date", header: "Date", nowrap: true, cell: (e) => formatDhaka(e.date) },
+    { key: "title", header: "Details", role: "title", cell: (e) => e.title ?? <span className="text-muted">—</span> },
+    { key: "kind", header: "Type", cell: (e) => <span className="badge">{e.kindLabel}</span> },
+    { key: "amount", header: "Amount", align: "right", role: "amount", nowrap: true, cell: (e) => <span className={`font-semibold tabular-nums ${e.amountMinor < 0 ? "text-red-600" : "text-brand"}`}>{formatBDT(e.amountMinor)}</span> },
+  ];
+  const loans = LOAN.reduce((s, x) => s + (k[x] ?? 0), 0);
   return (
-    <div className="space-y-6">
-      <div><Link href={`/cash/accounts/${type}`} className="text-sm text-brand hover:underline">Back to accounts</Link>
-        <h2 className="text-xl font-semibold">{a.name} {a.status === "archived" && <span className="ml-2 rounded bg-black/10 px-2 py-0.5 text-sm">Archived</span>}</h2>
+    <div className="space-y-5">
+      <div><Link href={`/cash/accounts?type=${a.type}`} className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline"><ArrowLeft size={14} aria-hidden />Back to accounts</Link>
+        <h2 className="mt-1 text-2xl font-semibold tracking-tight">{a.name} {a.status === "archived" && <span className="badge ml-2 !bg-slate-100 !text-muted">Archived</span>}</h2>
         <p className="text-muted">{[a.provider, a.identifierMasked].filter(Boolean).join(" · ")}</p></div>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">{cards.map(([l, v]) => (<div key={l} className="rounded-xl border border-line bg-white p-4"><p className="text-sm text-muted">{l}</p><p className="text-lg font-semibold">{formatBDT(v)}</p></div>))}</div>
-      <div className="overflow-x-auto rounded-xl border border-line bg-white">
-        <table className="w-full text-left text-sm"><caption className="sr-only">Ledger history</caption>
-          <thead className="border-b border-line text-muted"><tr><th className="p-3">Date</th><th className="p-3">Type</th><th className="p-3">Details</th><th className="p-3 text-right">Amount</th></tr></thead>
-          <tbody>
-            <tr className="border-b border-line"><td className="p-3">{formatDhaka(a.openingDate)}</td><td className="p-3">Opening</td><td className="p-3 text-muted">Starting balance</td><td className="p-3 text-right">{formatBDT(a.openingBalanceMinor)}</td></tr>
-            {h.items.map((e) => (<tr key={e.id} className="border-b border-line last:border-0"><td className="p-3">{formatDhaka(e.date)}</td><td className="p-3">{KIND[e.kind] ?? "Entry"}{e.isReversal && " (reversal)"}</td><td className="p-3 text-muted">{e.title ?? "—"}</td>
-              <td className={`p-3 text-right ${e.amountMinor < 0 ? "text-red-700" : "text-brand"}`}>{formatBDT(e.amountMinor)}</td></tr>))}
-          </tbody></table>
-        {h.total === 0 && <p className="p-6 text-center text-muted">No transactions yet. Income, expenses and transfers will appear here.</p>}
-      </div>
-      {pages > 1 && <div className="flex items-center justify-between"><button disabled={page <= 1} onClick={() => setPage(page - 1)} className="rounded-lg px-4 py-2 hover:bg-black/5 disabled:opacity-40">Previous</button><span className="text-sm text-muted">Page {page} of {pages}</span><button disabled={page >= pages} onClick={() => setPage(page + 1)} className="rounded-lg px-4 py-2 hover:bg-black/5 disabled:opacity-40">Next</button></div>}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+        <StatCard i={0} icon={Scale} title="Balance" value={formatBDT(a.balanceMinor)} /><StatCard i={1} icon={Rocket} title="Opening" value={formatBDT(a.openingBalanceMinor)} />
+        <StatCard i={2} icon={ArrowDownToLine} title="Income" value={formatBDT(k.income ?? 0)} tone="text-brand" /><StatCard i={3} icon={ArrowUpFromLine} title="Expenses" value={formatBDT(k.expense ?? 0)} tone="text-red-600" />
+        <StatCard i={4} icon={ArrowLeftRight} title="Transfers (net)" value={formatBDT(k.transfer ?? 0)} /><StatCard i={5} icon={HandCoins} title="Loans (net)" value={formatBDT(loans)} /></div>
+      <DataTable columns={columns} rows={rows} caption="Ledger history" loading={pending} />
+      <Pagination page={h.page} total={h.total} limit={h.limit} onPage={(p) => update({ page: p > 1 ? p : "" })} />
     </div>
   );
 }
