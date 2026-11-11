@@ -60,15 +60,32 @@ Database tests start a temporary replica set with `mongodb-memory-server`, which
 - **Concurrency:** each posting bumps a version on the account (and on a loan for repayments), so simultaneous postings conflict and retry instead of racing past a balance check.
 - **Idempotency:** create requests carry an `idempotencyKey` with a unique index. Replays return the original result.
 - **Accounts** are never deleted, only archived, and only at a zero balance. Opening balance and date lock once the account has transactions.
+- **Two dashboards.** `/dashboard` (the main dashboard) is the period filter (Today, This week, This month, This year, Custom) and five cards: total income and total expenses for the chosen period, then total balance, total lent and total borrowed as of now. `/cash/dashboard` (Cash Management > Dashboard) is the detailed one: the same filter, eight cards (total income, total expenses, total balance, cash balance, bank balance, mobile banking balance, total lent, total borrowed), charts, recent transactions, accounts, upcoming repayments and quick actions for income, expenses, lending and borrowing. Transfers are under Cash Management > Transfers.
+- **Cash Management menu:** Dashboard, Income, Expenses, Lending, Borrowing, Accounts, Transfers, Settings. Lending (`/cash/lending`) and Borrowing (`/cash/borrowing`) are separate pages, each with its own summary cards, filters and loan details. Accounts has the tabs All accounts, Cash, Bank accounts and Mobile banking. Old `/cash/lending-borrowing` links redirect to the right section.
 - **Dashboard:** income and expenses count only income/expense operations in the selected period. Net worth = active account balances + money owed to you − money you owe. Transfers and loan activity never change net worth or income/expense totals (covered by `tests/dashboard.test.js`).
 - Every important change writes an `AuditLog` row in the same transaction.
+
+### Bank and mobile banking accounts
+- **Bank accounts:** bank name (searchable list of Bangladeshi banks, plus "Other bank"), account name, account number, type (Savings or Current), branch, 9-digit routing number, and an optional debit or credit card.
+- **Mobile banking (MFS):** provider (bKash, Nagad, Rocket, Upay, mCash, Tap, SureCash, OK Wallet, MyCash, Cellfin, Pathao Pay, or Other), account holder name, mobile number (normalized to `01XXXXXXXXX`), and Active/Inactive.
+- **Privacy:** bank account numbers are stored but shown masked (`••••7890`). Only the **last 4 digits of a card** are ever stored. The full card number is never saved, logged or audited. A mobile number is shown in full because it is the number you share.
+- **Inactive accounts** keep their balance (it still counts toward net worth) but refuse new transactions, loans and transfers. Old entries can still be corrected or deleted.
+- **Pickers** for "Received in", "Paid from", loans and transfers group accounts as Cash / Bank accounts / Mobile banking, and show the icon, name, account or mobile number and balance. The Accounts page has a **Transfers** tab with the full transfer history.
+- **Icons** are generated badges (short code on a colour), not official logos. To use an official logo, save it as `public/logos/<code>.svg` and add the code to `LOGO_CODES` in `lib/banks.js`. The bank and MFS lists live in that same file.
+
+## 4c. Theme (light, dark, system)
+- The theme switcher is the sun/moon button in the top bar (also on the login page), with Light, Dark and System. Settings has the same choice under Appearance. **System** is the default and follows the device, switching live if the device does.
+- A saved Light or Dark choice is remembered in the browser (`localStorage` key `theme`). A small script in `<head>` (`lib/theme-script.js`) applies it before the page paints, so there is no flash of the wrong theme.
+- **Every colour is a token** defined in `app/globals.css` (`--color-surface`, `--color-ink`, `--color-line`, `--color-primary`, `--color-danger` and so on). The `.dark` block gives each token its dark value, so components never hard-code a theme. To restyle dark mode, edit that one block.
+- Charts take their colours from `lib/chart-colors.js`, because Recharts needs plain colour values.
+- `tests/theme-guard.test.js` fails the build if someone adds a light-only colour such as `bg-white`, `bg-slate-*` or `text-red-600`. Use the tokens instead.
 
 ## 5. Data model
 `Account`, `Operation` (one logical event), `LedgerEntry` (signed effect on one account), `Category`, `Loan`, `Repayment`, `AuditLog`. All carry `userId`. Indexes follow the actual query patterns (user + kind + date, user + account + date, and so on).
 
 ## 6. API
 All routes require a session. Responses are JSON; errors look like `{ "error": { "code", "message", "details?" } }`.
-`/api/accounts` (GET, POST) · `/api/accounts/[id]` (GET with history, PATCH) · `/api/categories` · `/api/transactions` (GET, POST) · `/api/transactions/[id]` (GET, PATCH, DELETE) · `/api/transactions/totals` · `/api/transactions/export` (CSV) · `/api/loans` · `/api/loans/[id]` · `/api/loans/[id]/repayments` · `/api/transfers` (GET, POST) · `/api/transfers/[id]` (DELETE) · `/api/dashboard` · `/api/reports/cash-flow` · `/api/reports/account-balances`
+`/api/accounts` (GET, POST) · `/api/accounts/[id]` (GET with history, PATCH) · `/api/categories` · `/api/transactions` (GET, POST) · `/api/transactions/[id]` (GET, PATCH, DELETE) · `/api/transactions/totals` · `/api/transactions/export` (CSV) · `/api/loans` · `/api/loans/[id]` · `/api/loans/[id]/repayments` · `/api/transfers` (GET, POST; transfers are permanent, with no edit or delete) · `/api/accounts/[id]/number` (reveal the full bank account number on request, logged) · `/api/dashboard` · `/api/reports/cash-flow` · `/api/reports/account-balances`
 
 ## 7. Deploying to Vercel
 1. Push the repo and import it in Vercel (framework: Next.js).

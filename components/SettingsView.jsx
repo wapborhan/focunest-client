@@ -1,8 +1,9 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { LogOut, Globe2, ShieldCheck } from "lucide-react";
+import { LogOut, Globe2, ShieldCheck, Palette } from "lucide-react";
 import { signOutEverywhere } from "@/lib/firebase-client";
+import { ThemeChoice } from "./ThemeSwitcher";
 import { WEEK_START, TZ } from "@/lib/dates";
 
 export default function SettingsView({ user }) {
@@ -16,10 +17,12 @@ export default function SettingsView({ user }) {
         {user.picture ? <img src={user.picture} alt="" referrerPolicy="no-referrer" className="h-14 w-14 rounded-full ring-2 ring-white/40" /> : null}
         <div className="min-w-0"><p className="truncate text-lg font-semibold">{user.name}</p><p className="truncate text-white/75">{user.email}</p></div></div></div>
         <p className="p-4 text-sm text-muted">You sign in with Google. There is no separate password.</p></section>
-      <section style={{ "--i": 1 }} className="card animate-fade-up p-5"><h2 className="mb-3 flex items-center gap-2 font-semibold"><Globe2 size={18} className="text-brand" aria-hidden />Preferences</h2>
+      <section style={{ "--i": 1 }} className="card animate-fade-up p-5"><h2 className="mb-1 flex items-center gap-2 font-semibold"><Palette size={18} className="text-primary" aria-hidden />Appearance</h2>
+        <p className="mb-4 text-sm text-muted">Choose a theme. System follows your device and switches automatically.</p><ThemeChoice /></section>
+      <section style={{ "--i": 2 }} className="card animate-fade-up p-5"><h2 className="mb-3 flex items-center gap-2 font-semibold"><Globe2 size={18} className="text-primary" aria-hidden />Preferences</h2>
         <dl className="divide-y divide-line">{rows.map(([k, v]) => <div key={k} className="flex justify-between gap-4 py-2.5"><dt className="text-muted">{k}</dt><dd className="text-right">{v}</dd></div>)}</dl>
         <p className="mt-3 text-sm text-muted">These are fixed for now. Changing them is planned.</p></section>
-      <section style={{ "--i": 2 }} className="card animate-fade-up p-5"><h2 className="mb-1 flex items-center gap-2 font-semibold"><ShieldCheck size={18} className="text-brand" aria-hidden />Security</h2>
+      <section style={{ "--i": 2 }} className="card animate-fade-up p-5"><h2 className="mb-1 flex items-center gap-2 font-semibold"><ShieldCheck size={18} className="text-primary" aria-hidden />Security</h2>
         <p className="mb-4 text-muted">Signing out ends your session on every device, not only this one.</p>
         <button onClick={logout} className="btn btn-ghost"><LogOut size={16} aria-hidden />Sign out everywhere</button></section>
     </div>

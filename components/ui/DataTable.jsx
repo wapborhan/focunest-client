@@ -15,12 +15,12 @@ export default function DataTable({ columns, rows, rowKey = (r) => r.id, caption
       <div className="card hidden overflow-hidden md:block"><div className="overflow-x-auto">
         <table className="w-full min-w-[680px] border-collapse text-sm">
           <caption className="sr-only">{caption}</caption>
-          <thead><tr className="border-b border-line bg-slate-50/80">{columns.map((c) => (
-            <th key={c.key} scope="col" className={`whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted ${ALIGN[c.align ?? "left"]}`}>
+          <thead><tr className="border-b border-line bg-surface-2/80">{columns.map((c) => (
+            <th key={c.key} scope="col" className={`whitespace-nowrap px-3.5 py-3 text-xs font-semibold uppercase tracking-wide text-muted ${ALIGN[c.align ?? "left"]}`}>
               {c.role === "actions" ? <span className="sr-only">{c.header ?? "Actions"}</span> : c.header}</th>))}</tr></thead>
           <tbody className="divide-y divide-line/70">{rows.map((r, i) => (
-            <tr key={rowKey(r)} style={delay(i)} className="animate-fade-up transition-colors even:bg-slate-50/50 hover:bg-brand-soft/60">
-              {columns.map((c) => <td key={c.key} className={`px-4 py-3 align-middle ${ALIGN[c.align ?? "left"]} ${c.nowrap ? "whitespace-nowrap" : ""}`}>{c.cell(r)}</td>)}</tr>))}</tbody>
+            <tr key={rowKey(r)} style={delay(i)} className="animate-fade-up transition-colors even:bg-surface-2/50 hover:bg-brand-soft/60">
+              {columns.map((c) => <td key={c.key} className={`px-3.5 py-3 align-middle ${ALIGN[c.align ?? "left"]} ${c.nowrap ? "whitespace-nowrap" : ""}`}>{c.cell(r)}</td>)}</tr>))}</tbody>
         </table></div></div>
       <ul className="space-y-3 md:hidden">{rows.map((r, i) => (
         <li key={rowKey(r)} style={delay(i)} className="card animate-fade-up p-4">

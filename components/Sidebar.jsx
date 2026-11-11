@@ -15,9 +15,9 @@ export default function Sidebar({ onNavigate }) {
   const Item = ({ i, nested }) => {
     const Icon = i.icon, active = hasActive(i, pathname);
     return (<Link href={i.href} onClick={onNavigate} aria-current={active ? "page" : undefined}
-      className={`${row} ${active ? "bg-white font-semibold text-brand-dark shadow-lg shadow-black/15" : "text-white/70 hover:bg-white/10 hover:text-white"}`}>
+      className={`${row} ${active ? "bg-white font-semibold text-[#0b4f49] shadow-lg shadow-black/15" : "text-white/70 hover:bg-white/10 hover:text-white"}`}>
       <Icon size={nested ? 16 : 18} aria-hidden className="shrink-0 transition-transform duration-200 group-hover:scale-110" /><span className="truncate">{i.en}</span>
-      <span lang="bn" className="ml-auto text-[11px] opacity-60">{i.bn}</span></Link>);
+      {!nested && <span lang="bn" className="ml-auto text-[11px] opacity-60">{i.bn}</span>}</Link>);
   };
   return (
     <nav aria-label="Main" className="space-y-1 p-3">

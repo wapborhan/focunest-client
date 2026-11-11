@@ -3,14 +3,14 @@ import { ZodError, z } from "zod";
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }) }));   // no session cookie
 
 const ROUTES = {
-  "accounts": () => import("@/app/api/accounts/route"), "accounts/[id]": () => import("@/app/api/accounts/[id]/route"),
+  "accounts": () => import("@/app/api/accounts/route"), "accounts/[id]": () => import("@/app/api/accounts/[id]/route"), "accounts/[id]/number": () => import("@/app/api/accounts/[id]/number/route"), "categories/[id]": () => import("@/app/api/categories/[id]/route"),
   "categories": () => import("@/app/api/categories/route"), "dashboard": () => import("@/app/api/dashboard/route"),
   "loans": () => import("@/app/api/loans/route"), "loans/[id]": () => import("@/app/api/loans/[id]/route"),
   "loans/[id]/repayments": () => import("@/app/api/loans/[id]/repayments/route"),
   "reports/account-balances": () => import("@/app/api/reports/account-balances/route"), "reports/cash-flow": () => import("@/app/api/reports/cash-flow/route"),
   "transactions": () => import("@/app/api/transactions/route"), "transactions/[id]": () => import("@/app/api/transactions/[id]/route"),
   "transactions/export": () => import("@/app/api/transactions/export/route"), "transactions/totals": () => import("@/app/api/transactions/totals/route"),
-  "transfers": () => import("@/app/api/transfers/route"), "transfers/[id]": () => import("@/app/api/transfers/[id]/route"),
+  "transfers": () => import("@/app/api/transfers/route"),
 };
 describe("unauthorized API access", () => {
   for (const [name, load] of Object.entries(ROUTES)) {
@@ -40,5 +40,8 @@ describe("route wrapper error handling", () => {
     r = await call(() => { throw new Error("mongodb://user:secret@host failed"); });
     const body = await r.text(); expect(r.status).toBe(500); expect(body).not.toContain("secret"); expect(body).not.toContain("mongodb"); spy.mockRestore();
     r = await call(() => ({ ok: true })); expect(r.status).toBe(200);
+    // A body with its own "status" field (accounts, loans) must still be sent as HTTP 200.
+    r = await call(() => ({ id: "1", status: "active" })); expect(r.status).toBe(200); expect((await r.json()).status).toBe("active");
+    const { created } = await import("@/lib/api"); r = await call(() => created({ id: "2", status: "partial" })); expect(r.status).toBe(201); expect((await r.json()).status).toBe("partial");
   });
 });

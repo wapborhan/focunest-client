@@ -7,6 +7,7 @@ import Select from "@/components/ui/Select";
 import DatePicker from "@/components/ui/DatePicker";
 import DataTable from "@/components/ui/DataTable";
 import Pagination from "@/components/ui/Pagination";
+import Dialog from "@/components/Dialog";
 import { flat, parseQuery } from "@/lib/search-params";
 import { listTransactionsQuery } from "@/lib/schemas/transaction";
 afterEach(cleanup);
@@ -83,5 +84,67 @@ describe("URL filter parsing", () => {
   it("falls back to defaults for tampered or invalid URLs instead of erroring", () => {
     const q = parseQuery(listTransactionsQuery, { from: "not-a-date", page: "-5", sort: "'; drop", categoryId: { $ne: "" } }, { kind: "expense", limit: 15 });
     expect(q).toMatchObject({ kind: "expense", page: 1, sort: "date" }); expect(q.from).toBeUndefined();
+  });
+});
+
+import AccountSelect, { accountOptions } from "@/components/ui/AccountSelect";
+import ProviderIcon from "@/components/ui/ProviderIcon";
+import { BANKS, MFS_PROVIDERS, BANK_GROUPS, findBank } from "@/lib/banks";
+import { accountMeta } from "@/lib/account-display";
+
+const ACCOUNTS = [
+  { id: "m1", type: "mobile", name: "Rahim Uddin", provider: "bKash", providerCode: "bkash", numberLabel: "01712345678", balanceMinor: 250000, status: "active", active: true },
+  { id: "b1", type: "bank", name: "Rahim Uddin", provider: "Dutch-Bangla Bank PLC", providerCode: "dbbl", numberLabel: "••••7890", subtype: "saving", balanceMinor: 1000000, status: "active", active: true },
+  { id: "c1", type: "cash", name: "Wallet", balanceMinor: 50000, status: "active" },
+  { id: "m2", type: "mobile", name: "Old", provider: "Nagad", providerCode: "nagad", numberLabel: "01811111111", balanceMinor: 0, status: "active", active: false },
+];
+describe("bank and MFS lists", () => {
+  it("has unique codes, every bank in a known group, and the well-known names", () => {
+    const codes = [...BANKS, ...MFS_PROVIDERS].map((x) => x.code); expect(new Set(codes).size).toBe(codes.length);
+    expect(BANKS.every((b) => BANK_GROUPS.includes(b.group) && b.short && b.name)).toBe(true); expect(BANKS.length).toBeGreaterThanOrEqual(50);
+    expect(["dbbl", "brac", "ibbl", "sonali", "ebl"].every((c) => findBank(c))).toBe(true);
+    expect(MFS_PROVIDERS.map((m) => m.name)).toEqual(expect.arrayContaining(["bKash", "Nagad", "Rocket", "Upay"]));
+  });
+});
+describe("account picker", () => {
+  it("groups by Cash, Bank accounts and Mobile banking, shows number and balance, and hides inactive accounts", () => {
+    const o = accountOptions(ACCOUNTS);
+    expect(o.map((x) => x.group)).toEqual(["Cash", "Bank accounts", "Mobile banking"]);
+    expect(o[1]).toMatchObject({ label: "Dutch-Bangla Bank PLC", sub: "Rahim Uddin · A/C ••••7890 · Savings" }); expect(o[1].hint).toMatch(/10,000/);
+    expect(o[2]).toMatchObject({ label: "bKash", sub: "Rahim Uddin · 01712345678" });
+    expect(accountOptions(ACCOUNTS, { selected: "m2" }).some((x) => x.value === "m2")).toBe(true);   // an already-chosen inactive account stays visible
+    expect(accountMeta(ACCOUNTS[2])).toEqual({ title: "Wallet", sub: "Cash in hand" });
+  });
+  it("searches by bank name, account number, mobile number and holder name", async () => {
+    const u = userEvent.setup(); render(<AccountSelect aria-label="Received in" accounts={ACCOUNTS} value="" onChange={() => {}} />);
+    await u.click(screen.getByRole("combobox")); expect(screen.getAllByRole("option")).toHaveLength(3);
+    expect(screen.getByText("Bank accounts")).toBeTruthy();
+    const box = screen.getByLabelText("Search options");
+    await u.type(box, "7890"); expect(screen.getAllByRole("option")).toHaveLength(1);
+    await u.clear(box); await u.type(box, "0171"); expect(screen.getAllByRole("option")[0].textContent).toContain("bKash");
+    await u.clear(box); await u.type(box, "rahim"); expect(screen.getAllByRole("option")).toHaveLength(2);
+  });
+  it("supports an All option for filters", async () => {
+    const onChange = vi.fn(); const u = userEvent.setup(); render(<AccountSelect aria-label="Account" accounts={ACCOUNTS} all="All accounts" value="b1" onChange={onChange} />);
+    await u.click(screen.getByRole("combobox")); await u.click(screen.getByRole("option", { name: "All accounts" })); expect(onChange).toHaveBeenCalledWith("");
+  });
+});
+describe("ProviderIcon", () => {
+  it("renders a short-code badge for known providers and an initial for unknown ones", () => {
+    const { container, rerender } = render(<ProviderIcon kind="bank" code="dbbl" />); expect(container.textContent).toBe("DBBL");
+    rerender(<ProviderIcon kind="mobile" code="bkash" />); expect(container.textContent).toBe("bK");
+    rerender(<ProviderIcon kind="bank" code="other" name="Rural Co-op" />); expect(container.textContent).toBe("R");
+    rerender(<ProviderIcon kind="cash" />); expect(container.querySelector("svg")).toBeTruthy();
+  });
+});
+
+describe("Dialog", () => {
+  it("renders in <body>, outside page content, so animated parents can't shrink its backdrop", async () => {
+    const onClose = vi.fn(); const { container } = render(<main className="animate-fade-up"><Dialog title="Add thing" onClose={onClose}><input aria-label="Name" /></Dialog></main>);
+    const dialog = screen.getByRole("dialog", { name: "Add thing" });
+    expect(container.contains(dialog)).toBe(false); expect(document.body.contains(dialog)).toBe(true);
+    expect(document.activeElement).toBe(screen.getByLabelText("Name"));
+    await userEvent.setup().keyboard("{Escape}"); expect(onClose).toHaveBeenCalledTimes(1);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Close" })); expect(onClose).toHaveBeenCalledTimes(2);
   });
 });

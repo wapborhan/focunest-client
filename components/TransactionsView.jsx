@@ -6,6 +6,7 @@ import { Plus, Pencil, Trash2, Download, Search, FilterX, Inbox, CalendarDays, C
 import TransactionForm from "./TransactionForm";
 import Dialog from "./Dialog";
 import Select from "./ui/Select";
+import AccountSelect from "./ui/AccountSelect";
 import DatePicker from "./ui/DatePicker";
 import DataTable from "./ui/DataTable";
 import Pagination from "./ui/Pagination";
@@ -19,7 +20,7 @@ import { useUrlFilters } from "@/lib/use-url-filters";
 const SORTS = [{ value: "date:desc", label: "Newest first" }, { value: "date:asc", label: "Oldest first" }, { value: "amount:desc", label: "Highest amount" }, { value: "amount:asc", label: "Lowest amount" }];
 
 export default function TransactionsView({ kind, query, data, totals, accounts, categories }) {
-  const copy = KIND_COPY[kind], tone = kind === "income" ? "text-brand" : "text-red-600";
+  const copy = KIND_COPY[kind], tone = kind === "income" ? "text-primary" : "text-danger";
   const router = useRouter(); const { update, pending } = useUrlFilters();
   const [qInput, setQInput] = useState(query.q ?? ""); const [form, setForm] = useState(null); const [del, setDel] = useState(null);
   // Typing is debounced so a search costs one server render, not one per keystroke.
@@ -39,7 +40,7 @@ export default function TransactionsView({ kind, query, data, totals, accounts, 
     { key: "account", header: "Account", cell: (t) => t.accountName },
     { key: "amount", header: "Amount", align: "right", role: "amount", nowrap: true, cell: (t) => <span className={`font-semibold tabular-nums ${tone}`}>{formatBDT(t.amountMinor)}</span> },
     { key: "actions", role: "actions", align: "right", cell: (t) => (<div className="flex justify-end gap-1"><button aria-label={`Edit ${t.title}`} onClick={() => setForm(t)} className="icon-btn"><Pencil size={16} /></button>
-      <button aria-label={`Delete ${t.title}`} onClick={() => setDel(t)} className="icon-btn hover:!bg-red-50 hover:!text-red-600"><Trash2 size={16} /></button></div>) },
+      <button aria-label={`Delete ${t.title}`} onClick={() => setDel(t)} className="icon-btn hover:!bg-danger-soft hover:!text-danger"><Trash2 size={16} /></button></div>) },
   ];
   return (
     <div className="space-y-5">
@@ -51,7 +52,7 @@ export default function TransactionsView({ kind, query, data, totals, accounts, 
           <div><span className="lbl">From</span><DatePicker aria-label="From date" clearable placeholder="Any" value={query.from ?? ""} max={query.to} onChange={(v) => update({ from: v })} /></div>
           <div><span className="lbl">To</span><DatePicker aria-label="To date" clearable placeholder="Any" value={query.to ?? ""} min={query.from} onChange={(v) => update({ to: v })} /></div>
           <div><span className="lbl">Category</span><Select aria-label="Category" value={query.categoryId ?? ""} onChange={(v) => update({ categoryId: v })} options={[{ value: "", label: "All categories" }, ...categories.map((c) => ({ value: c.id, label: c.nameEn, hint: c.nameBn }))]} /></div>
-          <div><span className="lbl">Account</span><Select aria-label="Account" value={query.accountId ?? ""} onChange={(v) => update({ accountId: v })} options={[{ value: "", label: "All accounts" }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]} /></div>
+          <div><span className="lbl">Account</span><AccountSelect aria-label="Account" accounts={accounts} includeInactive all="All accounts" value={query.accountId ?? ""} onChange={(v) => update({ accountId: v })} /></div>
         </div>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="w-full sm:w-52"><Select aria-label="Sort" value={`${query.sort}:${query.dir}`} onChange={(v) => { const [sort, dir] = v.split(":"); update({ sort, dir }); }} options={SORTS} /></div>
@@ -63,7 +64,7 @@ export default function TransactionsView({ kind, query, data, totals, accounts, 
       </div>
       <p className="text-sm text-muted">Total for this view <strong className={`text-base tabular-nums ${tone}`}>{formatBDT(data.totalAmountMinor)}</strong> from {data.total} {data.total === 1 ? "entry" : "entries"}</p>
       <DataTable columns={columns} rows={data.items} caption={`${copy.noun} entries`} loading={pending}
-        empty={<><span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-brand-soft text-brand"><Inbox aria-hidden /></span><p className="mt-4 font-semibold">{copy.empty}</p><p className="mt-1 text-muted">{copy.emptyHint}</p></>} />
+        empty={<><span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-brand-soft text-primary"><Inbox aria-hidden /></span><p className="mt-4 font-semibold">{copy.empty}</p><p className="mt-1 text-muted">{copy.emptyHint}</p></>} />
       <Pagination page={data.page} total={data.total} limit={data.limit} onPage={(p) => update({ page: p > 1 ? p : "" })} />
       {form && <TransactionForm kind={kind} tx={form === "new" ? null : form} accounts={accounts} categories={categories} onClose={() => setForm(null)} onSaved={refresh} />}
       {del && (<Dialog title={`Delete this ${copy.noun}?`} onClose={() => setDel(null)}>

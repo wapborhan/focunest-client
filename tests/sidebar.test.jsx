@@ -47,4 +47,14 @@ describe("Sidebar", () => {
     expect(b.tagName).toBe("BUTTON"); expect(b.getAttribute("aria-controls")).toBe("sub-cash");
     b.focus(); await userEvent.setup().keyboard("{Enter}"); expect(b.getAttribute("aria-expanded")).toBe("false");
   });
+  it("keeps the main Dashboard and the Cash Management Dashboard separate", () => {
+    path = "/cash/dashboard"; render(<Sidebar />);
+    expect(btn("Cash Management").getAttribute("aria-expanded")).toBe("true");
+    const links = screen.getAllByRole("link", { name: /^Dashboard/ }); expect(links).toHaveLength(2);
+    const current = links.filter((l) => l.getAttribute("aria-current") === "page"); expect(current).toHaveLength(1);
+    expect(current[0].closest("#sub-cash")).not.toBeNull();                                      // the one under Cash Management
+    cleanup(); path = "/dashboard"; render(<Sidebar />);
+    expect(btn("Cash Management").getAttribute("aria-expanded")).toBe("false");
+    const main = screen.getAllByRole("link", { name: /^Dashboard/ }); expect(main).toHaveLength(1); expect(main[0].getAttribute("aria-current")).toBe("page");
+  });
 });

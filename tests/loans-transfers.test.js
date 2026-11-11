@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import mongoose from "mongoose";
 
-let rs, acct, tx, cats, loans, tr, M;
+let rs, acct, tx, loans, tr, M;
 const A = "user-a", B = "user-b";
 const mk = (u, o = {}) => acct.createAccount(u, { type: "cash", name: "Wallet", openingBalanceMinor: 100000, openingDate: "2026-01-01", ...o });
 const bal = async (u, id) => (await acct.getAccount(u, id)).balanceMinor;
@@ -13,7 +13,7 @@ beforeAll(async () => {
   rs = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   process.env.MONGODB_URI = rs.getUri();
   await (await import("@/lib/db")).connectDB();
-  acct = await import("@/lib/services/accounts"); tx = await import("@/lib/services/transactions"); cats = await import("@/lib/services/categories");
+  acct = await import("@/lib/services/accounts"); tx = await import("@/lib/services/transactions");
   loans = await import("@/lib/services/loans"); tr = await import("@/lib/services/transfers");
   M = Object.fromEntries(await Promise.all(["Account", "Operation", "LedgerEntry", "AuditLog", "Category", "Loan", "Repayment"].map(async (n) => [n, (await import(/* @vite-ignore */ `@/lib/models/${n}`)).default])));
 });
@@ -107,20 +107,45 @@ describe("transfers", () => {
     await expect(tr.createTransfer(A, t(a.id, b.id))).rejects.toMatchObject({ status: 409 });
     expect(await M.LedgerEntry.countDocuments({ userId: A })).toBe(0); expect(await bal(A, a.id)).toBe(100000);
   });
-  it("is idempotent and can be deleted with reversal", async () => {
+  it("is idempotent, and transfers can't be deleted or edited", async () => {
     const a = await mk(A), b = await mk(A, { name: "B", openingBalanceMinor: 0 });
     const body = { fromAccountId: a.id, toAccountId: b.id, amountMinor: 5000, date: "2026-03-10", idempotencyKey: "tr-12345678" };
     const x = await tr.createTransfer(A, body), y = await tr.createTransfer(A, body);
-    expect(y.id).toBe(x.id); expect(await bal(A, b.id)).toBe(5000);
-    await tr.deleteTransfer(A, x.id);
-    expect([await bal(A, a.id), await bal(A, b.id)]).toEqual([100000, 0]);
-    expect((await tr.listTransfers(A)).total).toBe(0);
-    await expect(tr.deleteTransfer(A, x.id)).rejects.toMatchObject({ status: 404 });
-  });
-  it("blocks deleting a transfer whose funds were already spent", async () => {
-    const a = await mk(A), b = await mk(A, { name: "B", openingBalanceMinor: 0 }); const [, exp] = [0, (await cats.listCategories(A, "expense"))[0]];
-    const t = await tr.createTransfer(A, { fromAccountId: a.id, toAccountId: b.id, amountMinor: 5000, date: "2026-03-10" });
-    await tx.createTransaction(A, { kind: "expense", amountMinor: 4000, title: "x", categoryId: exp.id, accountId: b.id, date: "2026-03-11" });
-    await expect(tr.deleteTransfer(A, t.id)).rejects.toMatchObject({ status: 409 });
+    expect(y.id).toBe(x.id); expect(await bal(A, b.id)).toBe(5000); expect((await tr.listTransfers(A)).total).toBe(1);
+    expect(tr.deleteTransfer).toBeUndefined();                                         // history is permanent
+    expect((await import("@/app/api/transfers/route")).DELETE).toBeUndefined();
+    await tr.createTransfer(A, { fromAccountId: b.id, toAccountId: a.id, amountMinor: 5000, date: "2026-03-11", note: "correction" });   // fix a mistake with a transfer back
+    expect([await bal(A, a.id), await bal(A, b.id)]).toEqual([100000, 0]); expect((await tr.listTransfers(A)).total).toBe(2);
   });
 });
+
+describe("lending and borrowing sections: per-direction stats", () => {
+  it("totals each direction on its own", async () => {
+    const a = await mk(A);
+    const late = await loans.createLoan(A, loan(a.id, { principalMinor: 40000, dueDate: "2026-03-20" }));
+    await loans.createLoan(A, loan(a.id, { counterparty: "Far", principalMinor: 10000, dueDate: "2099-01-01" }));
+    await loans.createLoan(A, loan(a.id, { direction: "borrowed", counterparty: "Karim", principalMinor: 30000 }));
+    await loans.addRepayment(A, late.id, rep(a.id, 15000));
+    expect(await loans.directionStats(A, "lent")).toEqual({ principalMinor: 50000, repaidMinor: 15000, outstandingMinor: 35000, count: 2, overdueCount: 1 });
+    expect(await loans.directionStats(A, "borrowed")).toEqual({ principalMinor: 30000, repaidMinor: 0, outstandingMinor: 30000, count: 1, overdueCount: 0 });
+  });
+  it("stops counting a loan as overdue once it is fully repaid", async () => {
+    const a = await mk(A); const l = await loans.createLoan(A, loan(a.id, { principalMinor: 40000, dueDate: "2026-03-20" }));
+    expect((await loans.directionStats(A, "lent")).overdueCount).toBe(1);
+    await loans.addRepayment(A, l.id, rep(a.id, 40000));
+    expect(await loans.directionStats(A, "lent")).toMatchObject({ outstandingMinor: 0, repaidMinor: 40000, overdueCount: 0 });
+  });
+  it("is zero when there are no loans, and never mixes users", async () => {
+    const a = await mk(A), b = await mk(B); await loans.createLoan(B, loan(b.id));
+    expect(await loans.directionStats(A, "lent")).toEqual({ principalMinor: 0, repaidMinor: 0, outstandingMinor: 0, count: 0, overdueCount: 0 });
+    expect((await loans.directionStats(B, "lent")).count).toBe(1); expect(a.id).toBeTruthy();
+  });
+  it("comes back with a section's list, only when a direction is given", async () => {
+    const a = await mk(A); await loans.createLoan(A, loan(a.id)); await loans.createLoan(A, loan(a.id, { direction: "borrowed", principalMinor: 7000 }));
+    const q = { page: 1, limit: 20 };
+    const lent = await loans.listLoans(A, { ...q, direction: "lent" }); expect(lent.items.map((x) => x.direction)).toEqual(["lent"]); expect(lent.stats).toMatchObject({ principalMinor: 40000, count: 1 });
+    expect((await loans.listLoans(A, { ...q, direction: "borrowed" })).stats).toMatchObject({ principalMinor: 7000, count: 1 });
+    expect((await loans.listLoans(A, q)).stats).toBeNull();
+  });
+});
+

@@ -1,6 +1,7 @@
 import { ShieldCheck, WalletCards, LineChart } from "lucide-react";
 import Logo from "@/components/Logo";
 import LoginForm from "@/components/LoginForm";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 export const metadata = { title: "Sign in", description: "Sign in to My Life Manager with Google to track income, expenses, loans and accounts in one place.", alternates: { canonical: "/login" }, robots: { index: true, follow: true } };
 const POINTS = [[WalletCards, "Every account in one place", "Cash, bank and mobile banking, with transfers that always balance."], [LineChart, "Clear, honest numbers", "Loans and transfers never get counted as income or spending."], [ShieldCheck, "Private by design", "Google sign-in only. Your records are visible to you alone."]];
 export default function LoginPage() {
@@ -15,7 +16,8 @@ export default function LoginPage() {
           <ul className="space-y-5">{POINTS.map(([Icon, t, d], i) => (<li key={t} style={{ "--i": i + 2 }} className="animate-fade-up flex gap-4"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/10 ring-1 ring-white/15"><Icon size={20} aria-hidden /></span><div><p className="font-medium">{t}</p><p className="text-sm text-white/70">{d}</p></div></li>))}</ul></div>
         <p className="relative text-sm text-white/50">আপনার সব হিসাব এক জায়গায়</p>
       </section>
-      <section className="grid place-items-center p-6">
+      <section className="relative grid place-items-center p-6">
+        <div className="absolute right-4 top-4"><ThemeSwitcher /></div>
         <div className="animate-fade-up w-full max-w-sm">
           <div className="mb-8 flex items-center gap-3 lg:hidden"><Logo /><span className="text-lg font-semibold">My Life Manager</span></div>
           <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1><p className="mb-8 mt-2 text-muted">Sign in to see your accounts, income and expenses.</p>

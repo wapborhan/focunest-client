@@ -6,5 +6,5 @@ export const metadata = { title: "Accounts" };
 export default async function Page({ searchParams }) {
   const user = await requirePageUser(); const { type } = flat(await searchParams);
   const accounts = await listAccounts(user.uid);
-  return <AccountsView accounts={accounts} initialType={["cash", "bank", "mobile"].includes(type) ? type : "cash"} />;
+  return <AccountsView accounts={accounts} initialType={["all", "cash", "bank", "mobile"].includes(type) ? type : "all"} />;
 }
