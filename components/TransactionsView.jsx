@@ -19,7 +19,7 @@ import { useUrlFilters } from "@/lib/use-url-filters";
 
 const SORTS = [{ value: "date:desc", label: "Newest first" }, { value: "date:asc", label: "Oldest first" }, { value: "amount:desc", label: "Highest amount" }, { value: "amount:asc", label: "Lowest amount" }];
 
-export default function TransactionsView({ kind, query, data, totals, accounts, categories }) {
+export default function TransactionsView({ kind, query, data, totals, accounts, categories, budgetHints }) {
   const copy = KIND_COPY[kind], tone = kind === "income" ? "text-primary" : "text-danger";
   const router = useRouter(); const { update, pending } = useUrlFilters();
   const [qInput, setQInput] = useState(query.q ?? ""); const [form, setForm] = useState(null); const [del, setDel] = useState(null);
@@ -66,7 +66,7 @@ export default function TransactionsView({ kind, query, data, totals, accounts, 
       <DataTable columns={columns} rows={data.items} caption={`${copy.noun} entries`} loading={pending}
         empty={<><span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-brand-soft text-primary"><Inbox aria-hidden /></span><p className="mt-4 font-semibold">{copy.empty}</p><p className="mt-1 text-muted">{copy.emptyHint}</p></>} />
       <Pagination page={data.page} total={data.total} limit={data.limit} onPage={(p) => update({ page: p > 1 ? p : "" })} />
-      {form && <TransactionForm kind={kind} tx={form === "new" ? null : form} accounts={accounts} categories={categories} onClose={() => setForm(null)} onSaved={refresh} />}
+      {form && <TransactionForm kind={kind} tx={form === "new" ? null : form} accounts={accounts} categories={categories} budgetHints={budgetHints} onClose={() => setForm(null)} onSaved={refresh} />}
       {del && (<Dialog title={`Delete this ${copy.noun}?`} onClose={() => setDel(null)}>
         <p className="text-muted"><b className="text-ink">{del.title}</b> for {formatBDT(del.amountMinor)} will be removed and the account balance corrected. A reversal stays in the account history.</p>
         <div className="mt-5 flex justify-end gap-2"><button onClick={() => setDel(null)} className="btn btn-ghost">Cancel</button><button onClick={() => remove(del)} className="btn btn-danger">Delete {copy.noun}</button></div></Dialog>)}

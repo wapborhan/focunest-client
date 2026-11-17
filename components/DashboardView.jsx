@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowDownToLine, ArrowUpFromLine, HandCoins, Landmark, TrendingUp, TrendingDown, Wallet, Banknote, Building2, Smartphone } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import QuickAdd from "./QuickAdd";
+import BudgetPanel from "./BudgetPanel";
 import PeriodFilter from "./PeriodFilter";
 import DataTable from "./ui/DataTable";
 import StatCard from "./ui/StatCard";
@@ -25,7 +26,7 @@ const label = (p) => (p.length === 7 ? new Date(`${p}-01T00:00:00Z`).toLocaleStr
 const FLOW = { in: ["+", "text-primary"], out: ["\u2212", "text-danger"], neutral: ["", "text-muted"] };
 const Panel = ({ title, children, className = "", i = 0 }) => (<section style={{ "--i": i }} className={`card animate-fade-up p-4 sm:p-5 ${className}`}><h2 className="mb-3 font-semibold">{title}</h2>{children}</section>);
 
-export default function DashboardView({ data: d, preset, accounts, categories }) {
+export default function DashboardView({ data: d, preset, accounts, categories, budget, budgetHints }) {
   const router = useRouter(); const { resolved } = useTheme(); const C = chartColors(resolved === "dark"); const { update, pending } = useUrlFilters();
   const [action, setAction] = useState(null);
   const flow = d.cashFlow.map((s) => ({ name: label(s.period), full: s.period, Income: s.incomeMinor / 100, Expenses: s.expenseMinor / 100 }));
@@ -66,6 +67,7 @@ export default function DashboardView({ data: d, preset, accounts, categories })
         <div className="xl:col-span-2"><h2 className="mb-3 font-semibold">Recent transactions</h2>
           <DataTable columns={recentCols} rows={d.recent} caption="Recent transactions" loading={pending} empty={<><p className="font-semibold">Nothing recorded yet</p><p className="mt-1 text-muted">Add income or an expense to get started.</p></>} /></div>
         <div className="space-y-4">
+          {budget && <Panel i={4} title="Budget this month"><BudgetPanel budget={budget} /></Panel>}
           <Panel i={4} title="Accounts">{d.accounts.length === 0 && <p className="text-muted">No accounts yet. <Link href="/cash/accounts" className="text-primary underline">Add one</Link>.</p>}
             <ul className="divide-y divide-line">{d.accounts.map((a) => (<li key={a.id} className="flex items-center justify-between gap-3 py-2.5"><span className="flex min-w-0 items-center gap-3"><AccountIcon account={a} size={32} /><span className="min-w-0"><Link href={`/cash/accounts/${a.id}`} className="block truncate font-medium hover:text-primary">{accountMeta(a).title}</Link><span className="block truncate text-xs text-muted">{accountMeta(a).sub}</span></span></span><span className={`font-semibold tabular-nums ${a.balanceMinor < 0 ? "text-danger" : ""}`}>{formatBDT(a.balanceMinor)}</span></li>))}</ul></Panel>
           <Panel i={5} title="Upcoming repayments and receivables">{d.upcoming.length === 0 && <p className="text-muted">Nothing due in the next 30 days.</p>}
@@ -73,7 +75,7 @@ export default function DashboardView({ data: d, preset, accounts, categories })
               <p className={l.overdue ? "text-danger" : "text-muted"}>{l.direction === "lent" ? "They owe you" : "You owe"} · {l.overdue ? "Overdue since" : "Due"} {formatDhaka(l.dueDate)}</p></li>))}</ul></Panel>
         </div>
       </div>
-      {action && <QuickAdd action={action} accounts={accounts} categories={categories} onClose={() => setAction(null)} onSaved={() => { setAction(null); router.refresh(); }} />}
+      {action && <QuickAdd action={action} accounts={accounts} categories={categories} budgetHints={budgetHints} onClose={() => setAction(null)} onSaved={() => { setAction(null); router.refresh(); }} />}
     </div>
   );
 }

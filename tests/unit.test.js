@@ -7,7 +7,7 @@ import { middleware } from "@/middleware";
 describe("navigation config", () => {
   it("has no nested Account Management submenu: accounts is one page with tabs", () => {
     const cash = NAV.find((i) => i.id === "cash");
-    expect(cash.children.map((c) => c.en)).toEqual(["Dashboard", "Income", "Expenses", "Lending", "Borrowing", "Accounts", "Transfers", "Settings"]);
+    expect(cash.children.map((c) => c.en)).toEqual(["Dashboard", "Income", "Expenses", "Budget", "Lending", "Borrowing", "Accounts", "Transfers", "Settings"]);
     expect(cash.children.every((c) => !c.children && c.href)).toBe(true);
   });
   it("finds the breadcrumb trail for pages and detail routes", () => {

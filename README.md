@@ -80,6 +80,15 @@ Database tests start a temporary replica set with `mongodb-memory-server`, which
 - Charts take their colours from `lib/chart-colors.js`, because Recharts needs plain colour values.
 - `tests/theme-guard.test.js` fails the build if someone adds a light-only colour such as `bg-white`, `bg-slate-*` or `text-red-600`. Use the tokens instead.
 
+## 4d. Budgets
+- **Cash Management > Budget** (`/cash/budget`) tracks spending against limits, one month at a time. Use the arrows to move between months. Set an **overall monthly budget** (a cap on all expenses), a **budget per expense category**, or both. With category budgets only, the overall figure is their sum.
+- **A budget carries forward every month until you change it.** Each change applies from a month you pick (this month or next) and never rewrites earlier months, so past months keep the limit they had. "Stop budget" ends a budget from that month onward.
+- **What counts as spending:** only expense entries in that month (Dhaka calendar days). Transfers, loans, repayments, income and deleted entries never count. Each category's spending is whatever was recorded under that category.
+- **Status:** a budget is *On track* under 80% used, *Near limit* from 80% up to and including 100%, and *Over budget* once spending is above the limit. The page shows what is left, and for the current month what you can spend per day and where you are heading at the current pace.
+- **Where it shows up:** a "Budget this month" panel on the Cash dashboard, and a live hint under the category on the Add expense form ("This puts Food BDT 900.00 over its monthly budget"). The hint only guides. It never blocks saving.
+- **API:** `GET /api/budgets?month=YYYY-MM`, `PUT /api/budgets` (set a budget from a month) and `DELETE /api/budgets?month=&categoryId=` (stop one; leave out `categoryId` for the overall budget). Every change is written to the audit log.
+- Not included: rollover of unspent money, weekly or yearly budgets, and notifications.
+
 ## 5. Data model
 `Account`, `Operation` (one logical event), `LedgerEntry` (signed effect on one account), `Category`, `Loan`, `Repayment`, `AuditLog`. All carry `userId`. Indexes follow the actual query patterns (user + kind + date, user + account + date, and so on).
 

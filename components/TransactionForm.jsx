@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import Dialog from "./Dialog";
+import BudgetHint from "./BudgetHint";
 import Field from "./ui/Field";
 import Select from "./ui/Select";
 import AccountSelect from "./ui/AccountSelect";
@@ -26,14 +27,14 @@ const schema = z.object({
 });
 const METHOD_OPTIONS = [{ value: "", label: "Not set" }, ...METHODS.map((m) => ({ value: m, label: METHOD_LABEL[m] }))];
 
-export default function TransactionForm({ kind, tx, accounts, categories, onClose, onSaved }) {
+export default function TransactionForm({ kind, tx, accounts, categories, budgetHints, onClose, onSaved }) {
   const copy = KIND_COPY[kind]; const key = useRef(crypto.randomUUID()); const router = useRouter(); const [newCat, setNewCat] = useState(null);
   const { register, control, handleSubmit, setValue, setError, watch, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(schema),
     defaultValues: tx ? { amount: fromMinor(tx.amountMinor), title: tx.title, categoryId: tx.categoryId, accountId: tx.accountId, date: toDhakaYmd(tx.date), paymentMethod: tx.paymentMethod ?? "", reference: tx.reference ?? "", note: tx.note ?? "" }
       : { amount: "", title: "", categoryId: "", accountId: accounts[0]?.id ?? "", date: dhakaToday(), paymentMethod: "", reference: "", note: "" },
   });
-  const [accountId, amountInput] = watch(["accountId", "amount"]);
+  const [accountId, amountInput, categoryId, dateInput] = watch(["accountId", "amount", "categoryId", "date"]);
   const acc = accounts.find((a) => a.id === accountId);
   // Editing an expense: the old amount is already out of the balance, so it is available again for this edit.
   const available = acc ? acc.balanceMinor + (tx && tx.accountId === acc.id && kind === "expense" ? tx.amountMinor : 0) : null;
@@ -66,6 +67,7 @@ export default function TransactionForm({ kind, tx, accounts, categories, onClos
         <div><Field as="div" label="Category" error={errors.categoryId}><Controller control={control} name="categoryId" render={({ field }) => <Select aria-label="Category" value={field.value} onChange={field.onChange} options={catOptions} placeholder="Choose a category" invalid={!!errors.categoryId} />} /></Field>
           {newCat === null ? <button type="button" onClick={() => setNewCat("")} className="mt-1.5 text-sm font-medium text-primary hover:underline">+ New category</button>
             : <div className="mt-2 flex gap-2"><input autoFocus aria-label="New category name" className="field" value={newCat} onChange={(e) => setNewCat(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }} /><button type="button" onClick={addCategory} className="btn btn-ghost">Add</button></div>}</div>
+        {kind === "expense" && <BudgetHint hint={budgetHints?.[categoryId]} categoryId={categoryId} date={dateInput} amountMinor={Number(amountInput) > 0 ? toMinor(Number(amountInput)) : 0} tx={tx} />}
         <Field as="div" label={copy.accountLabel} error={errors.accountId}><Controller control={control} name="accountId" render={({ field }) => <AccountSelect aria-label={copy.accountLabel} accounts={accounts} value={field.value} onChange={field.onChange} invalid={!!errors.accountId} />} /></Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field as="div" label="Date" error={errors.date}><Controller control={control} name="date" render={({ field }) => <DatePicker aria-label="Date" value={field.value} onChange={field.onChange} invalid={!!errors.date} />} /></Field>
